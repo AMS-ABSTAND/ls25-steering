@@ -5,6 +5,7 @@
 
 RealisticSteering = {}
 RealisticSteering.Version = "2.0.0.0"
+RealisticSteering.ModName = "FS25_AdaptiveSteering"
 
 local RealisticSteering_mt = Class(RealisticSteering, VehicleSpecialization)
 
@@ -12,10 +13,6 @@ local RealisticSteering_mt = Class(RealisticSteering, VehicleSpecialization)
 RealisticSteering.steeringSpeeds = { 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9 }
 RealisticSteering.angleLimits = { 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75}
 RealisticSteering.resetForces = { 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5 }
-
-RealisticSteering.steeringSpeedTexts = { "0 %", "5 %", "10 %", "15 %", "20 %", "25 %", "30 %", "35 %", "40 %", "45 %", "50 %", "55 %", "60 %", "65 %", "70 %", "75 %", "80 %", "85 %", "90 %"}
-RealisticSteering.angleLimitTexts = { "0 %", "5 %", "10 %", "15 %", "20 %", "25 %", "30 %", "35 %", "40 %", "45 %", "50 %", "55 %", "60 %", "65 %", "70 %", "75 %" }
-RealisticSteering.resetForceTexts = {  "50 %", "75 %", "100 %", "125 %", "150 %", "175 %", "200 %", "225 %", "250 %", "275 %", "300 %", "325 %", "350 %"}
 
 -- Globale Einstellungen
 RealisticSteering.steeringSpeed = 0.55
@@ -27,6 +24,8 @@ RealisticSteering.resetForceIndex = 6
 
 RealisticSteering.directory = g_currentModDirectory
 RealisticSteering.confDirectory = getUserProfileAppPath().. "modSettings/FS25_RealisticSteering/"
+RealisticSteering.isInitialized = false
+RealisticSteering.globalActionEventsRegistered = false
 
 -- FS25 Specialization functions
 function RealisticSteering.prerequisitesPresent(specializations)
@@ -36,6 +35,7 @@ function RealisticSteering.prerequisitesPresent(specializations)
 end
 
 function RealisticSteering.initSpecialization()
+    print("RealisticSteering: initSpecialization called")
     local schema = Vehicle.xmlSchema
     schema:register(XMLValueType.BOOL, "vehicle.realisticSteering#enabled", "Enable realistic steering", true)
     
@@ -44,12 +44,14 @@ function RealisticSteering.initSpecialization()
 end
 
 function RealisticSteering.registerFunctions(vehicleType)
+    print("RealisticSteering: registerFunctions called for " .. tostring(vehicleType.name))
     SpecializationUtil.registerFunction(vehicleType, "toggleRealisticSteering", RealisticSteering.toggleRealisticSteering)
     SpecializationUtil.registerFunction(vehicleType, "setRealisticSteeringEnabled", RealisticSteering.setRealisticSteeringEnabled)
     SpecializationUtil.registerFunction(vehicleType, "getRealisticSteeringEnabled", RealisticSteering.getRealisticSteeringEnabled)
 end
 
 function RealisticSteering.registerEventListeners(vehicleType)
+    print("RealisticSteering: registerEventListeners called for " .. tostring(vehicleType.name))
     SpecializationUtil.registerEventListener(vehicleType, "onLoad", RealisticSteering)
     SpecializationUtil.registerEventListener(vehicleType, "onPostLoad", RealisticSteering)
     SpecializationUtil.registerEventListener(vehicleType, "onUpdate", RealisticSteering)
@@ -67,28 +69,113 @@ end
 
 -- ModEvent Listeners
 function RealisticSteering:loadMap(name)
-    print("RealisticSteering: loadMap")
+    print("RealisticSteering: loadMap called")
+    
+    if RealisticSteering.isInitialized then
+        print("RealisticSteering: Already initialized, skipping")
+        return
+    end
     
     -- GUI initialisieren
     RealisticSteering.gui = {}
     RealisticSteering.gui["rsSettingGui"] = rsGui.new()
-    g_gui:loadGui(RealisticSteering.directory .. "gui/rsGui.xml", "rsGui", RealisticSteering.gui.rsSettingGui)
     
-    -- Global action events registrieren
-    FSBaseMission.registerActionEvents = Utils.appendedFunction(FSBaseMission.registerActionEvents, RealisticSteering.registerActionEventsMenu)
+    local success, error = pcall(function()
+        g_gui:loadGui(RealisticSteering.directory .. "gui/rsGui.xml", "rsGui", RealisticSteering.gui.rsSettingGui)
+    end)
     
-    -- Save Configuration when saving savegame
-    FSBaseMission.saveSavegame = Utils.appendedFunction(FSBaseMission.saveSavegame, RealisticSteering.saveSavegame)
+    if not success then
+        print("RealisticSteering: Error loading GUI: " .. tostring(error))
+    else
+        print("RealisticSteering: GUI loaded successfully")
+    end
+    
+    -- Global action events später registrieren
+    RealisticSteering:registerGlobalActionEvents()
     
     -- Einstellungen laden
     RealisticSteering:readConfig()
+    
+    RealisticSteering.isInitialized = true
+    print("RealisticSteering: Initialization complete")
 end
 
 function RealisticSteering:deleteMap()
+    print("RealisticSteering: deleteMap called")
+    RealisticSteering.isInitialized = false
+    RealisticSteering.globalActionEventsRegistered = false
+end
+
+-- Global Action Events registrieren
+function RealisticSteering:registerGlobalActionEvents()
+    if RealisticSteering.globalActionEventsRegistered then
+        return
+    end
+    
+    print("RealisticSteering: Registering global action events")
+    
+    -- Settings Action Event
+    local result1, eventId1 = g_inputBinding:registerActionEvent('RealisticSteering_Settings', RealisticSteering, RealisticSteering.onOpenSettings, false, true, false, true)
+    if result1 then
+        g_inputBinding:setActionEventTextPriority(eventId1, GS_PRIO_VERY_LOW)
+        g_inputBinding:setActionEventText(eventId1, g_i18n:getText("action_RealisticSteering_Settings"))
+        g_inputBinding:setActionEventTextVisibility(eventId1, false)
+        print("RealisticSteering: Settings action event registered successfully")
+    else
+        print("RealisticSteering: Failed to register settings action event")
+    end
+    
+    -- Toggle Action Event (global)
+    local result2, eventId2 = g_inputBinding:registerActionEvent('RealisticSteering_Toggle', RealisticSteering, RealisticSteering.onToggleGlobal, false, true, false, true)
+    if result2 then
+        g_inputBinding:setActionEventTextPriority(eventId2, GS_PRIO_VERY_LOW)
+        g_inputBinding:setActionEventText(eventId2, g_i18n:getText("action_RealisticSteering_Toggle"))
+        g_inputBinding:setActionEventTextVisibility(eventId2, false)
+        print("RealisticSteering: Toggle action event registered successfully")
+    else
+        print("RealisticSteering: Failed to register toggle action event")
+    end
+    
+    RealisticSteering.globalActionEventsRegistered = true
+end
+
+-- Global Toggle Function
+function RealisticSteering:onToggleGlobal(actionName, inputValue, callbackState, isAnalog)
+    print("RealisticSteering: Global toggle triggered")
+    if g_currentMission and g_currentMission.controlledVehicle then
+        local vehicle = g_currentMission.controlledVehicle
+        if vehicle.toggleRealisticSteering then
+            vehicle:toggleRealisticSteering()
+        else
+            print("RealisticSteering: Current vehicle does not support RealisticSteering")
+        end
+    else
+        print("RealisticSteering: No controlled vehicle")
+    end
+end
+
+-- Settings GUI öffnen
+function RealisticSteering:onOpenSettings(actionName, inputValue, callbackState, isAnalog)
+    print("RealisticSteering: Opening settings GUI")
+    if RealisticSteering.gui and RealisticSteering.gui.rsSettingGui then
+        if RealisticSteering.gui.rsSettingGui.isOpen then
+            RealisticSteering.gui.rsSettingGui:onClickBack()
+        else
+            if g_gui.currentGui == nil or g_gui.currentGui == g_gui.screenControllers[MainScreen] then
+                g_gui:showGui("rsGui")
+            else
+                print("RealisticSteering: Cannot open settings - another GUI is active")
+            end
+        end
+    else
+        print("RealisticSteering: GUI not available")
+    end
 end
 
 -- Vehicle Specialization Functions
 function RealisticSteering:onLoad(savegame)
+    print("RealisticSteering: onLoad called for vehicle")
+    
     -- Spec initialisieren
     local specName = "spec_" .. RealisticSteering.SPEC_NAME
     self[specName] = self[specName] or {}
@@ -100,8 +187,7 @@ function RealisticSteering:onLoad(savegame)
     spec.axisSide = 0
     spec.actionEvents = {}
     
-    print(string.format("RealisticSteering: onLoad for vehicle %s, enabled: %s", 
-                tostring(self.configFileName), tostring(spec.isActive)))
+    print(string.format("RealisticSteering: Vehicle loaded, enabled: %s", tostring(spec.isActive)))
 end
 
 function RealisticSteering:onPostLoad(savegame)
@@ -109,6 +195,8 @@ function RealisticSteering:onPostLoad(savegame)
     if spec == nil then
         return
     end
+    
+    print("RealisticSteering: onPostLoad called")
     
     -- Original-Werte speichern
     if self.spec_drivable ~= nil then
@@ -124,8 +212,7 @@ function RealisticSteering:onPostLoad(savegame)
         spec.isActive = Utils.getNoNil(xmlFile:getValue(key .. "#enabled"), spec.isActive)
     end
     
-    print(string.format("RealisticSteering: onPostLoad for %s, active: %s", 
-            tostring(self:getName()), tostring(spec.isActive)))
+    print(string.format("RealisticSteering: Vehicle post-loaded, active: %s", tostring(spec.isActive)))
 end
 
 function RealisticSteering:saveToXMLFile(xmlFile, key)
@@ -155,8 +242,7 @@ function RealisticSteering:onRegisterActionEvents(isActiveForInput, isActiveForI
             return
         end
         
-        print(string.format("RealisticSteering: onRegisterActionEvents - active: %s, activeIgnore: %s", 
-                tostring(isActiveForInput), tostring(isActiveForInputIgnoreSelection)))
+        print("RealisticSteering: Registering vehicle action events")
         
         self:clearActionEventsTable(spec.actionEvents)
         
@@ -167,13 +253,14 @@ function RealisticSteering:onRegisterActionEvents(isActiveForInput, isActiveForI
                 g_inputBinding:setActionEventTextPriority(actionEventId, GS_PRIO_VERY_LOW)
                 g_inputBinding:setActionEventText(actionEventId, g_i18n:getText("action_RealisticSteering_Toggle"))
                 g_inputBinding:setActionEventTextVisibility(actionEventId, true)
+                print("RealisticSteering: Vehicle toggle action event registered")
             end
         end
     end
 end
 
 function RealisticSteering:actionEventToggle(actionName, inputValue, callbackState, isAnalog)
-    print("RealisticSteering: actionEventToggle")
+    print("RealisticSteering: Vehicle toggle action triggered")
     self:toggleRealisticSteering()
 end
 
@@ -222,8 +309,7 @@ end
 function RealisticSteering:onEnterVehicle()
     local spec = self.spec_realisticSteering
     if spec ~= nil then
-        print(string.format("RealisticSteering: Entered vehicle %s, active: %s", 
-                tostring(self:getName()), tostring(spec.isActive)))
+        print(string.format("RealisticSteering: Entered vehicle, active: %s", tostring(spec.isActive)))
     end
 end
 
@@ -271,29 +357,9 @@ function RealisticSteering:getRealisticSteeringEnabled()
     return spec ~= nil and spec.isActive or false
 end
 
--- Global Menu Action Events
-function RealisticSteering:registerActionEventsMenu()
-    print("RealisticSteering: registerActionEventsMenu")
-    local result, eventId = g_inputBinding:registerActionEvent('RealisticSteering_Settings', self, RealisticSteering.onOpenSettings, false, true, false, true)
-    if result then
-        g_inputBinding:setActionEventTextPriority(eventId, GS_PRIO_VERY_LOW)
-        g_inputBinding:setActionEventText(eventId, g_i18n:getText("action_RealisticSteering_Settings"))
-        g_inputBinding:setActionEventTextVisibility(eventId, true)
-    end
-end
-
-function RealisticSteering:onOpenSettings(actionName, inputValue, callbackState, isAnalog)
-    print("RealisticSteering: onOpenSettings")
-    if RealisticSteering.gui.rsSettingGui.isOpen then
-        RealisticSteering.gui.rsSettingGui:onClickBack()
-    elseif g_gui.currentGui == nil or g_gui.currentGui == g_gui.screenControllers[MainScreen] then
-        g_gui:showGui("rsGui")
-    end
-end
-
 -- Einstellungen
 function RealisticSteering:settingsFromGui(steeringSpeedState, steeringAngleLimitState, resetForceState)
-    print("RealisticSteering: received settings from GUI")
+    print("RealisticSteering: Received settings from GUI")
     RealisticSteering.steeringSpeed = RealisticSteering.steeringSpeeds[steeringSpeedState]
     RealisticSteering.angleLimit = RealisticSteering.angleLimits[steeringAngleLimitState]
     RealisticSteering.resetForce = RealisticSteering.resetForces[resetForceState]
@@ -304,16 +370,20 @@ function RealisticSteering:settingsFromGui(steeringSpeedState, steeringAngleLimi
 end
 
 function RealisticSteering:settingsResetGui()
-    print("RealisticSteering: reset settings")
-    RealisticSteering.gui.rsSettingGui:setSteeringSpeed(12)
-    RealisticSteering.gui.rsSettingGui:setSteeringAngleLimit(8)
-    RealisticSteering.gui.rsSettingGui:setResetForce(6)
+    print("RealisticSteering: Reset settings")
+    if RealisticSteering.gui and RealisticSteering.gui.rsSettingGui then
+        RealisticSteering.gui.rsSettingGui:setSteeringSpeed(12)
+        RealisticSteering.gui.rsSettingGui:setSteeringAngleLimit(8)
+        RealisticSteering.gui.rsSettingGui:setResetForce(6)
+    end
 end
 
 function RealisticSteering:guiClosed()
-    RealisticSteering.gui.rsSettingGui:setSteeringSpeed(RealisticSteering.steeringSpeedIndex)
-    RealisticSteering.gui.rsSettingGui:setSteeringAngleLimit(RealisticSteering.angleLimitIndex)
-    RealisticSteering.gui.rsSettingGui:setResetForce(RealisticSteering.resetForceIndex)
+    if RealisticSteering.gui and RealisticSteering.gui.rsSettingGui then
+        RealisticSteering.gui.rsSettingGui:setSteeringSpeed(RealisticSteering.steeringSpeedIndex)
+        RealisticSteering.gui.rsSettingGui:setSteeringAngleLimit(RealisticSteering.angleLimitIndex)
+        RealisticSteering.gui.rsSettingGui:setResetForce(RealisticSteering.resetForceIndex)
+    end
 end
 
 function RealisticSteering:saveSavegame()
@@ -328,7 +398,8 @@ function RealisticSteering:writeConfig()
     createFolder(getUserProfileAppPath().. "modSettings/")
     createFolder(RealisticSteering.confDirectory)
     
-    local file = RealisticSteering.confDirectory .. g_currentModName .. ".xml"
+    local modName = RealisticSteering.ModName or "FS25_RealisticSteering"
+    local file = RealisticSteering.confDirectory .. modName .. ".xml"
     local xml = XMLFile.create("FS25_RealisticSteering_XML", file, "FS25_RealisticSteeringSettings")
     
     if xml ~= nil then
@@ -338,6 +409,9 @@ function RealisticSteering:writeConfig()
         
         xml:save()
         xml:delete()
+        print("RealisticSteering: Configuration saved successfully")
+    else
+        print("RealisticSteering: Error creating configuration XML file")
     end
 end
 
@@ -346,8 +420,11 @@ function RealisticSteering:readConfig()
         return
     end
     
-    local file = RealisticSteering.confDirectory .. g_currentModName .. ".xml"
+    local modName = RealisticSteering.ModName or "FS25_RealisticSteering"
+    local file = RealisticSteering.confDirectory .. modName .. ".xml"
+    
     if not fileExists(file) then
+        print("RealisticSteering: Configuration file not found, creating default")
         RealisticSteering:writeConfig()
     else
         local xml = XMLFile.load("FS25_RealisticSteering_XML", file, "FS25_RealisticSteeringSettings")
@@ -361,13 +438,8 @@ function RealisticSteering:readConfig()
             RealisticSteering.angleLimit = RealisticSteering.angleLimits[RealisticSteering.angleLimitIndex]
             RealisticSteering.resetForce = RealisticSteering.resetForces[RealisticSteering.resetForceIndex]
             
-            if RealisticSteering.gui ~= nil and RealisticSteering.gui.rsSettingGui ~= nil then
-                RealisticSteering.gui.rsSettingGui:setSteeringSpeed(RealisticSteering.steeringSpeedIndex)
-                RealisticSteering.gui.rsSettingGui:setSteeringAngleLimit(RealisticSteering.angleLimitIndex)
-                RealisticSteering.gui.rsSettingGui:setResetForce(RealisticSteering.resetForceIndex)
-            end
-            
             xml:delete()
+            print("RealisticSteering: Configuration loaded successfully")
         else
             print("RealisticSteering: Error loading settings - could not load XML")
         end

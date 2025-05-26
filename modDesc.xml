@@ -51,6 +51,7 @@ Einstellungsmenü: Linke Umschalttaste + S]]></de>
     </actions>
     
     <l10n>
+        <!-- Action text entries (for menu display) -->
         <text name="action_RealisticSteering_Settings">
             <en>Realistic Steering: Settings</en>
             <de>Realistisches Lenken: Einstellungen</de>
@@ -59,6 +60,18 @@ Einstellungsmenü: Linke Umschalttaste + S]]></de>
             <en>Realistic Steering: Toggle</en>
             <de>Realistisches Lenken: Umschalten</de>
         </text>
+        
+        <!-- Input text entries (for control binding display) -->
+        <text name="input_RealisticSteering_Settings">
+            <en>Realistic Steering: Settings</en>
+            <de>Realistisches Lenken: Einstellungen</de>
+        </text>
+        <text name="input_RealisticSteering_Toggle">
+            <en>Realistic Steering: Toggle</en>
+            <de>Realistisches Lenken: Umschalten</de>
+        </text>
+        
+        <!-- GUI text entries -->
         <text name="RS_TITLE">
             <en>Realistic Steering Settings</en>
             <de>Realistisches Lenken Einstellungen</de>
