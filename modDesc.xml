@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<modDesc descVersion="96">
+    <author>Stephan</author>
+    <version>2.0.0.0</version>
+    
+    <title>
+        <en>Realistic Steering</en>
+        <de>Realistisches Lenken</de>
+    </title>
+    
+    <description>
+        <en><![CDATA[This mod adjusts the steering speed and maximum steering angle of each vehicle according to the current vehicle speed. This allows a tractor to be steered much more sensitively, resulting in a more stable driving experience and more realism. The parameters can be conveniently adjusted to personal driving feel via an in-game menu.
+
+Features:
+- Dynamic steering speed adjustment based on vehicle speed
+- Configurable maximum steering angle limitation
+- Adjustable steering reset force
+- In-game settings menu
+- Toggle function to enable/disable the mod
+
+Default key: Left Shift + R (toggle)
+Settings menu: Left Shift + S]]></en>
+        <de><![CDATA[Dieser Mod passt die Lenkgeschwindigkeit und den maximalen Lenkwinkel jedes Fahrzeugs an die aktuelle Fahrzeuggeschwindigkeit an. Auf diese Art lässt sich ein Traktor wesentlich sensibler lenken was zu einem stabileren Fahrgefühl und mehr Realismusgefühl führt. Die Parameter können bequem über ein Ingame Menü an das persönliche Fahrgefühl angepasst werden.
+
+Funktionen:
+- Dynamische Lenkgeschwindigkeitsanpassung basierend auf Fahrzeuggeschwindigkeit
+- Konfigurierbare maximale Lenkwinkelbegrenzung
+- Einstellbare Lenk-Rückstellkraft
+- Ingame-Einstellungsmenü
+- Umschaltfunktion zum Aktivieren/Deaktivieren des Mods
+
+Standardtaste: Linke Umschalttaste + R (umschalten)
+Einstellungsmenü: Linke Umschalttaste + S]]></de>
+    </description>
+    
+    <iconFilename>icon.dds</iconFilename>
+    
+    <multiplayer supported="true"/>
+    
+    <extraSourceFiles>
+        <sourceFile filename="register.lua"/>
+    </extraSourceFiles>
+    
+    <actions>
+        <action name="RealisticSteering_Settings" category="VEHICLE" axisType="HALF" ignoreComboMask="false">
+            <binding device="KB_MOUSE_DEFAULT" input="KEY_lshift KEY_s"/>
+        </action>
+        <action name="RealisticSteering_Toggle" category="VEHICLE" axisType="HALF" ignoreComboMask="false">
+            <binding device="KB_MOUSE_DEFAULT" input="KEY_lshift KEY_r"/>
+        </action>
+    </actions>
+    
+    <l10n>
+        <text name="action_RealisticSteering_Settings">
+            <en>Realistic Steering: Settings</en>
+            <de>Realistisches Lenken: Einstellungen</de>
+        </text>
+        <text name="action_RealisticSteering_Toggle">
+            <en>Realistic Steering: Toggle</en>
+            <de>Realistisches Lenken: Umschalten</de>
+        </text>
+        <text name="RS_TITLE">
+            <en>Realistic Steering Settings</en>
+            <de>Realistisches Lenken Einstellungen</de>
+        </text>
+        <text name="RS_STEERING_SPEED">
+            <en>Steering Speed</en>
+            <de>Lenkgeschwindigkeit</de>
+        </text>
+        <text name="RS_ANGLE_LIMIT">
+            <en>Angle Limit</en>
+            <de>Winkelbegrenzung</de>
+        </text>
+        <text name="RS_RESET_FORCE">
+            <en>Reset Force</en>
+            <de>Rückstellkraft</de>
+        </text>
+        <text name="RS_RESET_SETTINGS">
+            <en>Reset to Default</en>
+            <de>Auf Standard zurücksetzen</de>
+        </text>
+    </l10n>
+</modDesc>
